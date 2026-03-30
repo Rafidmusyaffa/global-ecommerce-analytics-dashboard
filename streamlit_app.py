@@ -1,62 +1,37 @@
 import streamlit as st
-import pandas as pd
-import plotly.express as px
-from pathlib import Path
 
-st.title("Global E-Commerce 3D Analytics Dashboard")
-
-# Load data
-BASE_DIR = Path(__file__).resolve().parent
-DATA_PATH = BASE_DIR / "data" / "processed" / "cleaned_superstore.csv"
-df = pd.read_csv(DATA_PATH)
-
-# Sidebar filters
-st.sidebar.header("Filters")
-
-category = st.sidebar.selectbox(
-    "Select Category",
-    df["Category"].unique()
+st.set_page_config(
+    page_title="Global E-Commerce Intelligence",
+    page_icon="🌍",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-segment = st.sidebar.selectbox(
-    "Select Segment",
-    df["Segment"].unique()
-)
+# Dark mode toggle
+dark_mode = st.sidebar.toggle("🌙 Dark Mode", value=True)
 
-# Filter data
-filtered = df[
-    (df["Category"] == category) &
-    (df["Segment"] == segment)
-]
+if dark_mode:
+    st.markdown("""
+    <style>
+    .stApp {
+        background-color: #0E1117;
+        color: white;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-# KPI FIRST
-col1, col2, col3 = st.columns(3)
+st.title("🌍 Global E-Commerce Intelligence Platform")
+st.caption("AI-Powered Business Intelligence Dashboard")
 
-col1.metric("Total Sales", f"${filtered['Sales'].sum():,.0f}")
-col2.metric("Total Profit", f"${filtered['Profit'].sum():,.0f}")
-col3.metric("Avg Discount", f"{filtered['Discount'].mean():.2%}")
+st.divider()
 
-# ⚠️ check if empty
-if filtered.empty:
-    st.warning("No data available for selected filters")
-else:
-    fig = px.scatter_3d(
-        filtered,
-        x="Discount",
-        y="Sales",
-        z="Profit",
-        color="Ship Mode",
-        size="Sales",
-        title="3D Profit Analysis"
-    )
+st.markdown("""
+### 🚀 Features
+- 📊 Executive KPI Dashboard  
+- 🌐 Interactive 3D Analytics  
+- 🤖 AI Business Insights  
+- 📱 Responsive Mobile Layout  
+- ⬇️ Downloadable Data  
+""")
 
-    st.plotly_chart(fig, use_container_width=True)
-
-# AI Insight
-st.subheader("AI Insights")
-
-best_category = df.groupby("Category")["Profit"].sum().idxmax()
-worst_category = df.groupby("Category")["Profit"].sum().idxmin()
-
-st.write(f"Highest Profit Category: {best_category}")
-st.write(f"Lowest Profit Category: {worst_category}")
+st.info("Use the sidebar to navigate")
