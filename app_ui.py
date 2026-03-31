@@ -1,18 +1,46 @@
 from pathlib import Path
+import sqlite3
 import pandas as pd
 import streamlit as st
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_PATH = BASE_DIR / "data" / "processed" / "cleaned_superstore.csv"
+DB_PATH = BASE_DIR / "notebooks" / "ecommerce.db"
 IMG_DIR = BASE_DIR / "images"
 
 
-def load_data():
-    df = pd.read_csv(DATA_PATH)
+def _load_from_sqlite(db_path: Path) -> pd.DataFrame:
+    with sqlite3.connect(db_path) as conn:
+        tables = pd.read_sql_query(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;",
+            conn,
+        )
+        if tables.empty:
+            raise FileNotFoundError("No tables found in the SQLite database.")
+
+        table_name = tables.iloc[0]["name"]
+        df = pd.read_sql_query(f'SELECT * FROM "{table_name}"', conn)
+
+    return df
+
+
+def load_data() -> pd.DataFrame:
+    if DATA_PATH.exists():
+        df = pd.read_csv(DATA_PATH)
+    elif DB_PATH.exists():
+        df = _load_from_sqlite(DB_PATH)
+    else:
+        raise FileNotFoundError(
+            f"Could not find data file at {DATA_PATH} or database at {DB_PATH}"
+        )
 
     for col in ["Sales", "Profit", "Discount"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    for col in ["Order Date", "Ship Date"]:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce")
 
     return df
 
@@ -22,23 +50,31 @@ def apply_theme():
 
     if dark:
         bg = "#050816"
+        surface = "rgba(15,23,42,0.62)"
+        surface_soft = "rgba(15,23,42,0.50)"
         text = "#E2E8F0"
+        muted = "rgba(226,232,240,0.74)"
         border = "rgba(148,163,184,0.16)"
+        btn_text = "#FFFFFF"
     else:
         bg = "#F8FAFC"
+        surface = "rgba(255,255,255,0.94)"
+        surface_soft = "rgba(255,255,255,0.90)"
         text = "#0F172A"
+        muted = "rgba(15,23,42,0.68)"
         border = "rgba(15,23,42,0.12)"
+        btn_text = "#0F172A"
 
     st.markdown(
         f"""
         <style>
         html, body, [data-testid="stAppViewContainer"] {{
-            background: linear-gradient(180deg, {bg} 0%, {bg} 100%);
+            background: {bg};
             color: {text};
         }}
 
         [data-testid="stSidebar"] {{
-            background: linear-gradient(180deg, {bg}, {bg});
+            background: {bg};
             border-right: 1px solid {border};
         }}
 
@@ -52,7 +88,7 @@ def apply_theme():
 
         .block-container {{
             padding-top: 1rem;
-            padding-bottom: 2rem;
+            padding-bottom: 3rem;
             max-width: 1500px;
         }}
 
@@ -68,7 +104,7 @@ def apply_theme():
         }}
 
         .hero-subtitle {{
-            color: rgba(226,232,240,0.78);
+            color: {muted};
             font-size: 1.02rem;
             line-height: 1.6;
             max-width: 62rem;
@@ -82,29 +118,51 @@ def apply_theme():
             margin: 0.8rem 0 1rem 0;
         }}
 
-        .glass-card {{
-            background: rgba(15,23,42,0.60);
-            backdrop-filter: blur(14px);
-            border: 1px solid {border};
-            border-radius: 18px;
-            padding: 1rem 1.05rem;
-            box-shadow: 0 18px 50px rgba(0,0,0,0.22);
-            transition: transform .20s ease, box-shadow .20s ease, border-color .20s ease;
-        }}
-
-        .glass-card:hover {{
-            transform: translateY(-2px);
-            box-shadow: 0 22px 60px rgba(59,130,246,0.16);
-            border-color: rgba(96,165,250,0.45);
-        }}
-
         .chart-card {{
-            background: rgba(15,23,42,0.50);
+            background: {surface_soft};
             backdrop-filter: blur(14px);
             border-radius: 20px;
             padding: 1rem;
             border: 1px solid {border};
             box-shadow: 0 18px 50px rgba(0,0,0,0.18);
+            margin-bottom: 1rem;
+        }}
+
+        .metric-box {{
+            background: {surface};
+            border: 1px solid {border};
+            border-radius: 18px;
+            padding: 1rem 1.05rem;
+            box-shadow: 0 18px 50px rgba(0,0,0,0.18);
+            min-height: 100%;
+        }}
+
+        .metric-label {{
+            font-size: 0.88rem;
+            font-weight: 700;
+            opacity: 0.9;
+            margin-bottom: 0.35rem;
+            color: {text};
+        }}
+
+        .metric-value {{
+            font-size: clamp(1.4rem, 2vw, 2rem);
+            font-weight: 850;
+            line-height: 1.05;
+            color: {text};
+        }}
+
+        .section-heading {{
+            font-size: 1.15rem;
+            font-weight: 750;
+            margin-bottom: 0.2rem;
+            color: {text};
+        }}
+
+        .section-sub {{
+            color: {muted};
+            font-size: 0.95rem;
+            margin-bottom: 0.75rem;
         }}
 
         .mini-pill {{
@@ -117,16 +175,54 @@ def apply_theme():
             color: {text};
         }}
 
-        .section-heading {{
-            font-size: 1.15rem;
-            font-weight: 750;
-            margin-bottom: 0.2rem;
+        .floating-kpi {{
+            position: sticky;
+            top: 0;
+            z-index: 30;
+            background: {surface_soft};
+            backdrop-filter: blur(14px);
+            border: 1px solid {border};
+            border-radius: 18px;
+            padding: 0.65rem;
+            margin-bottom: 1rem;
         }}
 
-        .section-sub {{
-            color: rgba(226,232,240,0.72);
-            font-size: 0.95rem;
-            margin-bottom: 0.75rem;
+        .image-card {{
+            background: {surface};
+            border: 1px solid {border};
+            border-radius: 18px;
+            padding: 0.8rem;
+            box-shadow: 0 16px 44px rgba(0,0,0,0.16);
+            margin-bottom: 1rem;
+        }}
+
+        .image-card-title {{
+            font-size: 1rem;
+            font-weight: 800;
+            margin: 0.3rem 0 0.15rem 0;
+            color: {text};
+        }}
+
+        .image-card-subtitle {{
+            font-size: 0.9rem;
+            color: {muted};
+            margin-bottom: 0.55rem;
+            line-height: 1.45;
+        }}
+
+        .image-card-caption {{
+            font-size: 0.85rem;
+            color: {muted};
+            margin-top: 0.45rem;
+        }}
+
+        .story-card {{
+            background: {surface_soft};
+            border: 1px solid {border};
+            border-radius: 18px;
+            padding: 1rem 1.05rem;
+            box-shadow: 0 18px 50px rgba(0,0,0,0.16);
+            margin-bottom: 1rem;
         }}
 
         .stDownloadButton > button {{
@@ -134,7 +230,7 @@ def apply_theme():
             height: 3rem;
             font-weight: 700;
             background: linear-gradient(90deg,#3B82F6,#22D3EE);
-            color: white;
+            color: {btn_text};
             border: none;
         }}
 
@@ -143,23 +239,29 @@ def apply_theme():
             transform: translateY(-1px);
         }}
 
-        div[data-testid="metric-container"] {{
-            border-radius: 16px;
-            padding: 0.15rem 0.25rem;
+        .stTabs [data-baseweb="tab-list"] {{
+            gap: 8px;
+            overflow-x: auto;
+            scrollbar-width: none;
         }}
 
-        .metric-box {{
-            background: rgba(15,23,42,0.58);
-            border: 1px solid {border};
-            border-radius: 18px;
-            padding: 1rem 1.05rem;
-            box-shadow: 0 18px 50px rgba(0,0,0,0.18);
+        .stTabs [data-baseweb="tab"] {{
+            min-width: 120px;
         }}
 
         @media (max-width: 900px) {{
             .block-container {{
-                padding-left: 1rem;
-                padding-right: 1rem;
+                padding-left: 0.8rem;
+                padding-right: 0.8rem;
+            }}
+
+            .hero-subtitle {{
+                font-size: 0.96rem;
+            }}
+
+            .floating-kpi {{
+                position: sticky;
+                top: 0;
             }}
         }}
         </style>
@@ -170,15 +272,23 @@ def apply_theme():
     return dark
 
 
-def sidebar_snapshot(df, title="Live Snapshot"):
+def sidebar_snapshot(df: pd.DataFrame, title="Live Snapshot"):
     st.sidebar.markdown(f"### 📊 {title}")
-    st.sidebar.metric("Total Sales", f"${df['Sales'].sum():,.0f}")
-    st.sidebar.metric("Total Profit", f"${df['Profit'].sum():,.0f}")
-    st.sidebar.metric("Avg Discount", f"{df['Discount'].mean():.2%}")
+    if "Sales" in df.columns:
+        st.sidebar.metric("Total Sales", f"${df['Sales'].sum():,.0f}")
+    if "Profit" in df.columns:
+        st.sidebar.metric("Total Profit", f"${df['Profit'].sum():,.0f}")
+    if "Discount" in df.columns:
+        st.sidebar.metric("Avg Discount", f"{df['Discount'].mean():.2%}")
     st.sidebar.metric("Rows", f"{len(df):,}")
-    if "Category" in df.columns:
-        top_category = df.groupby("Category")["Profit"].sum().idxmax()
-        st.sidebar.info(f"Top Category: {top_category}")
+
+    if "Category" in df.columns and "Profit" in df.columns and not df.empty:
+        try:
+            top_category = df.groupby("Category")["Profit"].sum().idxmax()
+            st.sidebar.info(f"Top Category: {top_category}")
+        except Exception:
+            pass
+
     st.sidebar.divider()
 
 
@@ -186,8 +296,8 @@ def render_metric_card(label, value):
     st.markdown(
         f"""
         <div class="metric-box">
-            <div style="font-size:0.95rem;font-weight:700;opacity:0.92;margin-bottom:0.35rem;">{label}</div>
-            <div style="font-size:2rem;font-weight:800;line-height:1;">{value}</div>
+            <div class="metric-label">{label}</div>
+            <div class="metric-value">{value}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -199,3 +309,28 @@ def section_header(title, subtitle=""):
     if subtitle:
         st.markdown(f'<div class="hero-subtitle">{subtitle}</div>', unsafe_allow_html=True)
     st.markdown('<div class="accent-line"></div>', unsafe_allow_html=True)
+
+
+def render_image_card(image_path, title, subtitle="", caption=""):
+    st.markdown('<div class="image-card">', unsafe_allow_html=True)
+
+    if image_path and Path(image_path).exists():
+        st.image(image_path, use_container_width=True)
+    else:
+        st.info(f"Missing image: {Path(image_path).name if image_path else 'unknown file'}")
+
+    st.markdown(f'<div class="image-card-title">{title}</div>', unsafe_allow_html=True)
+
+    if subtitle:
+        st.markdown(
+            f'<div class="image-card-subtitle">{subtitle}</div>',
+            unsafe_allow_html=True,
+        )
+
+    if caption:
+        st.markdown(
+            f'<div class="image-card-caption">{caption}</div>',
+            unsafe_allow_html=True,
+        )
+
+    st.markdown('</div>', unsafe_allow_html=True)
