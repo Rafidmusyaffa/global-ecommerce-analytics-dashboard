@@ -14,7 +14,7 @@ st.session_state["dark_mode"] = theme_choice.startswith("🌙")
 dark = apply_theme()
 
 st.title("🌍 Global E-Commerce Intelligence Platform")
-st.caption("AI-powered business intelligence dashboard for executive storytelling and portfolio presentation.")
+st.caption("AI-powered business intelligence dashboard for executive storytelling and portfolio presentation Rafid Musyaffa : www.linkedin.com/in/rafid-musyaffa-a75079312 , https://github.com/Rafidmusyaffa/global-ecommerce-analytics-dashboard.")
 
 st.markdown('<div class="accent-line"></div>', unsafe_allow_html=True)
 
